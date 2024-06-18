@@ -1,0 +1,15 @@
+"L:\IarEmbeddedWorkbenchForArm\arm\bin\armPROC.dll" 
+
+"L:\IarEmbeddedWorkbenchForArm\arm\bin\armSTLINK.dll" 
+
+"C:\Users\Luke\Desktop\Studium\Semester 2\Technische Informatik\Projekt\EWARM\Projekt\Exe\Projekt.out" 
+
+--plugin="L:\IarEmbeddedWorkbenchForArm\arm\bin\armLibSupportUniversal.dll" 
+
+--device_macro="L:\IarEmbeddedWorkbenchForArm\arm/config/debugger/ST/STM32G4xx.dmac" 
+
+--flash_loader="L:\IarEmbeddedWorkbenchForArm\arm/config/flashloader/ST/FlashSTM32G43xxB.board" 
+
+
+
+

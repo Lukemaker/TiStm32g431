@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BuildDb>
+    <Tool>
+        <Name>linker</Name>
+        <Parent>
+            <Path>C:\Users\Luke\Desktop\Studium\Semester 2\Technische Informatik\Projekt\EWARM\Projekt\Exe\Projekt.out</Path>
+            <Output>
+                <Path>C:\Users\Luke\Desktop\Studium\Semester 2\Technische Informatik\Projekt\EWARM\Projekt\List\Projekt.map</Path>
+            </Output>
+        </Parent>
+    </Tool>
+</BuildDb>

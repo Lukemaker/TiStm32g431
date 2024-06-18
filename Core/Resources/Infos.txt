@@ -1,0 +1,14 @@
+TIMx control register 1 (TIMx_CR1)(x = 2 to 5)
+
+CR1 (TIM2 - TIM5)
+    Bit 3 OPM: One-pulse mode
+        0: Counter is not stopped at update event
+        1: Counter stops counting at the next update event (clearing the bit CEN)   
+
+    Bit 0 CEN: Counter enable
+        0: Counter disabled
+        1: Counter enabled
+        Note: 
+            External clock, gated mode and encoder mode can work only if the CEN bit has been
+            previously set by software. However trigger mode can set the CEN bit automatically by
+            hardware.
