@@ -38,19 +38,34 @@ extern "C"
   void initialize();
 
   /*
-   * Initialize timer 2 with 0.35 sec
-   */
-  void initializeTimer2();
-
-  /*
-   * Initialize timer 3 with 1 sec
+   * Initialize timer 3 with 0.35 sec
    */
   void initializeTimer3();
 
   /*
-   * Initialize timer 4 with 3 sec
+   * Initialize timer 4 with 1 sec
    */
   void initializeTimer4();
+
+  /*
+   * Initialize timer 15 with 3 sec
+   */
+  void initializeTimer15();
+
+  /**
+   * Start timer 3
+   */
+  void startTimer3();
+
+  /**
+   * Start timer 4
+   */
+  void startTimer4();
+
+  /**
+   * Start timer 15
+   */
+  void startTimer15();
 
 #ifdef __cplusplus
 }

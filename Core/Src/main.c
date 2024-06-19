@@ -1,8 +1,6 @@
 #include "stm32g431xx.h"
 #include "main.h"
 
-// NVIC (= nested vector interrupt controller)
-
 void main(void)
 {
   initialize();
@@ -24,7 +22,7 @@ void TIM4_IRQHandler()
 }
 void TIM15_IRQHandler()
 {
-  TIM15->SR &= 0 << 0;   // Clear interrupt-flag (UIF)
+  TIM15->SR &= 0 << 0;  // Clear interrupt-flag (UIF)
   GPIOB->ODR ^= 1 << 8; // Toggle green LED
 }
 
@@ -35,18 +33,16 @@ void initialize()
   RCC->AHB2ENR |= 1 << 1;    // Bit1: Enable clocks for GPIOB
   GPIOB->MODER = 0x00010000; // Bit8: Set as digital output
 
+  initializeTimer3();
+  initializeTimer4();
+  initializeTimer15();
   // Timer 2, 3 & 4 initialization     |= logical OR
   //  1      = 00000000 00000000 00000000 00000001 = 1
   //  1 << 1 = 00000000 00000000 00000000 00000010 = 2
   //  1 << 8 = 00000000 00000000 00000001 00000000 = 256
 
-  // Enable Interrupts
-  TIM3->DIER = 1 << 0;       // TIM3 update interrupt enabled
-  NVIC_EnableIRQ(TIM3_IRQn); // Enable TIM3 interrupt vector in NVIC
   //__enable_irq();               // Enable *all* interrupts (global)
 }
-
-
 
 void initializeTimer3()
 {
