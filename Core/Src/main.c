@@ -51,53 +51,59 @@ void EXTI0_IRQHandler(void)
 /**
  * Eventhandler for Pin A2 [PA3]. Triggers when someone touches the pin.
  */
-void EXTI3_IRQHandler(void)
+void EXTI2_IRQHandler(void)
 {
-  EXTI->IMR1 &= ~EXTI_IMR1_IM3; // Deactivate interrupt
-  EXTI->PR1 |= EXTI_PR1_PIF3;   // Clear interrupt flag for EXTI line 3
+  EXTI->IMR1 &= ~EXTI_IMR1_IM2; // Deactivate interrupt
+  EXTI->PR1 |= EXTI_PR1_PIF2;   // Clear interrupt flag for EXTI line 2
   GPIOB->ODR ^= 1 << 8;         // Toggle green LED
-  EXTI->IMR1 &= ~EXTI_IMR1_IM3; // Activate interrupt
+  EXTI->IMR1 &= ~EXTI_IMR1_IM2; // Activate interrupt
 }
 
 void initialize()
 {
-  // Enable RCC clocks for GPIOA and GPIOB
-  RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
-  RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;
+  initializeLed();
+  initializePinInterrupts();
+  // initializeTimer()
+  // startTimer(double seconds)
+  initializeTimer3();
+  initializeTimer4();
+  initializeTimer15();
 
-  // Set PA0 and PA3 as inputs
-  GPIOA->MODER &= ~(GPIO_MODER_MODE0 | GPIO_MODER_MODE3);
+  __enable_irq();
+}
 
-  // RCC->CR |= 1 << 24;     // Bit24: Enable RCC clock
-  //  Enable system configuration controller clock
-  RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
-
-  // Configure external interrupt for PA0 (EXTI0) and PA3 (EXTI3)
-  SYSCFG->EXTICR[0] &= ~(SYSCFG_EXTICR1_EXTI0 | SYSCFG_EXTICR1_EXTI3);
-  SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI0_PA | SYSCFG_EXTICR1_EXTI3_PA;
-
-  // Enable interrupts for EXTI0 and EXTI3
-  EXTI->IMR1 |= EXTI_IMR1_IM0 | EXTI_IMR1_IM3;
-  EXTI->RTSR1 |= EXTI_RTSR1_RT0 | EXTI_RTSR1_RT3;
-
-  // Enable NVIC for EXTI0 and EXTI3
-  NVIC_EnableIRQ(EXTI0_IRQn);
-  NVIC_EnableIRQ(EXTI3_IRQn);
-
-  // Enable clock for GPIOB (for LED)
+void initializeLed()
+{
+  // Enable clock for GPIOB
   RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;
 
   // Set PB8 as output
   GPIOB->MODER &= ~GPIO_MODER_MODE8;
   GPIOB->MODER |= GPIO_MODER_MODE8_0;
+}
 
-  // Initialize timers
-  initializeTimer3();
-  initializeTimer4();
-  initializeTimer15();
+void initializePinInterrupts()
+{
+  // Enable RCC clocs for GPIOA
+  RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
 
-  // Enable global interrupts
-  __enable_irq();
+  // Set PA0 and PA2 as inputs
+  GPIOA->MODER &= ~(GPIO_MODER_MODE0 | GPIO_MODER_MODE2);
+
+  //  Enable system configuration controller clock
+  RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+
+  // Configure external interrupt for PA0 (EXTI0) and PA2 (EXTI2)
+  SYSCFG->EXTICR[0] &= ~(SYSCFG_EXTICR1_EXTI0 | SYSCFG_EXTICR1_EXTI2);
+  SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI0_PA | SYSCFG_EXTICR1_EXTI2_PA;
+
+  // Enable interrupts for EXTI0 and EXTI2
+  EXTI->IMR1 |= EXTI_IMR1_IM0 | EXTI_IMR1_IM2;
+  EXTI->RTSR1 |= EXTI_RTSR1_RT0 | EXTI_RTSR1_RT2;
+
+  // Enable NVIC for EXTI0 and EXTI2
+  NVIC_EnableIRQ(EXTI0_IRQn);
+  NVIC_EnableIRQ(EXTI2_IRQn);
 }
 
 void initializeTimer3()

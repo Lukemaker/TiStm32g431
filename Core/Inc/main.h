@@ -37,6 +37,16 @@ extern "C"
    */
   void initialize();
 
+  /**
+   * Initialize LED
+   */
+  void initializeLed();
+
+  /**
+   * Initialize pin interrupts PA0 (A0) and PA2 (A7)
+   */
+  void initializePinInterrupts();
+
   /*
    * Initialize timer 3 with 0.35 sec
    */
