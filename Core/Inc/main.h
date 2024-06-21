@@ -47,35 +47,40 @@ extern "C"
    */
   void initializePinInterrupts();
 
-  /*
-   * Initialize timer 3 with 0.35 sec
+  /**
+   * Initialize timers 3 & 4
    */
-  void initializeTimer3();
-
-  /*
-   * Initialize timer 4 with 1 sec
-   */
-  void initializeTimer4();
-
-  /*
-   * Initialize timer 15 with 3 sec
-   */
-  void initializeTimer15();
+  void initializeTimers();
 
   /**
-   * Start timer 3
+   * Start timer 3 with a duration calculated with the number of pin touches since the last call of this function.
    */
   void startTimer3();
 
   /**
-   * Start timer 4
+   * Stop timer 3.
+   */
+  void stopTimer3();
+
+  /**
+   * Start timer 4 with a duration calculated with the number of pin touches since the last call of this function.
    */
   void startTimer4();
 
   /**
-   * Start timer 15
+   * Calculates the PSC value based on amountPinTriggered.
    */
-  void startTimer15();
+  int getPscValue();
+
+  /**
+   * Wait 500 ms. Start timer 4 and wait for it to finish.
+   */
+
+  void wait500ms();
+  /**
+   * Toggles the LED.
+   */
+  void toggleLed();
 
 #ifdef __cplusplus
 }
