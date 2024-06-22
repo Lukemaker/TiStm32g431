@@ -2,20 +2,30 @@
 #include "stm32g431xx.h"
 #include "main.h"
 
-const int PIN_A0 = 0; /**Represents PA0 */
-const int PIN_A2 = 2; /**Represents PA2 */
+const int PIN_A0 = 0; /** Represents PA0 */
+const int PIN_A2 = 2; /** Represents PA2 */
 
 const double TIMER_FREQUENCY = 16000000.0; /** The timer frequency: 16 MHz. */
-const int ARR = 5000;                      /** The ARR value. Affects the calculation of the PCR value. */
-const int PSC_750MS = 240;                 /** The PSC value for the timer to count 0.75 seconds in combination with the ARR = 5000 */
+const int ARR = 4999;                      /** The ARR value. Affects the calculation of the PCR value. */
+const int PSC_750MS = 2399;                /** The PSC value for the timer to count 0.75 seconds in combination with the ARR = 4999. [(TIMER_FREQUENCY * 0.75) / (ARR + 1)] */
 const int DEFAULT_TIME_IN_SECONDS = 5;     /** The default time in seconds for the LED if Pin A0 wasn't touched at all. */
 
-int amountPinTriggered = 0; /** Contains the number of how often Pin A0 was touched. */
-int pinTrigger;
+int amountPinA0Triggered = 0; /** Contains the number of how often Pin A0 was touched. */
+int pinTrigger;               /** Contains the number of the pin last triggered/last touched. */
+
 bool isLedBlinking = false; /** True if LED is currently blinking. */
 bool debounce0 = false;     /** Debounce flag for Pin A0. */
 bool debounce2 = false;     /** Debounce flag for Pin A2. */
 
+/**
+ * Returns true if it's the first time touching any pin.
+ * Necessary because the first time can be triggered multiple times at the same time. Reason unknown.
+ */
+bool isFirstTouch = true;
+
+/**
+ * Main method. Is getting called
+ */
 void main(void)
 {
     initialize();
@@ -38,10 +48,11 @@ void TIM3_IRQHandler()
 void TIM4_IRQHandler()
 {
     TIM4->SR &= ~TIM_SR_UIF; // Clear interrupt flag (UIF)
+    isFirstTouch = false;
 
     if (pinTrigger == PIN_A0)
     {
-        debounce0 = false;           // Clear debounce flag for PA0
+        debounce0 = false;
         EXTI->PR1 |= EXTI_PR1_PIF0;  // Clear interrupt flag for EXTI line 0
         EXTI->IMR1 |= EXTI_IMR1_IM0; // Re-enable interrupt for EXTI line 0
     }
@@ -52,8 +63,8 @@ void TIM4_IRQHandler()
             EXTI->IMR1 |= EXTI_IMR1_IM0; // Enable interrupt for EXTI line 0
         }
         isLedBlinking = !isLedBlinking;
-        amountPinTriggered = 0;
-        debounce2 = false;           // Clear debounce flag for PA2
+        amountPinA0Triggered = 0;
+        debounce2 = false;
         EXTI->PR1 |= EXTI_PR1_PIF2;  // Clear interrupt flag for EXTI line 2
         EXTI->IMR1 |= EXTI_IMR1_IM2; // Re-enable interrupt for EXTI line 2
     }
@@ -67,13 +78,17 @@ void EXTI0_IRQHandler(void)
 {
     if (!debounce0)
     {
-        debounce0 = true;             // Set debounce flag for PA0
+        debounce0 = true;
         EXTI->IMR1 &= ~EXTI_IMR1_IM0; // Disable interrupt for EXTI line 0
         EXTI->PR1 |= EXTI_PR1_PIF0;   // Clear interrupt flag for EXTI line 0
         toggleLed();
         pinTrigger = PIN_A0;
-        amountPinTriggered++;
-        startTimer4(); // Start debounce timer
+        amountPinA0Triggered++;
+        if (isFirstTouch)
+        {
+            amountPinA0Triggered = 1;
+        }
+        startTimer4();
     }
 }
 
@@ -84,18 +99,24 @@ void EXTI2_IRQHandler(void)
 {
     if (!debounce2)
     {
-        debounce2 = true;             // Set debounce flag for PA2
+        debounce2 = true;
         EXTI->IMR1 &= ~EXTI_IMR1_IM2; // Disable interrupt for EXTI line 2
         EXTI->PR1 |= EXTI_PR1_PIF2;   // Clear interrupt flag for EXTI line 2
-        stopTimer3();
-        toggleLed();
+        if (!isFirstTouch)
+        {
+            stopTimer3();
+        }
         pinTrigger = PIN_A2;
-        if (!isLedBlinking) // TODO: If it does not work, move it back into TIM4 Handler
+        if (!isLedBlinking)
         {
             EXTI->IMR1 &= ~EXTI_IMR1_IM0; // Disable interrupt for EXTI line 0
             startTimer3();
         }
-        startTimer4(); // Start debounce timer
+        else
+        {
+            toggleLed();
+        }
+        startTimer4();
     }
 }
 
@@ -146,12 +167,12 @@ void initializeTimers()
 {
     RCC->APB1ENR1 |= RCC_APB1ENR1_TIM3EN | RCC_APB1ENR1_TIM4EN; // Enable clocks for timer 3 & 4
 
-    TIM3->ARR = (ARR - 1);     // Set ARR value of timer 3
+    TIM3->ARR = ARR;
     TIM3->DIER = TIM_DIER_UIE; // Enable update interrupt for timer 3
     NVIC_EnableIRQ(TIM3_IRQn); // Enable global interrupt for timer 3
 
-    TIM4->ARR = (ARR - 1);     // Set ARR value of timer 4
-    TIM4->PSC = PSC_750MS;     // Set PSC value of timer 4 for 500ms debounce
+    TIM4->ARR = ARR;
+    TIM4->PSC = PSC_750MS;
     TIM4->DIER = TIM_DIER_UIE; // Enable update interrupt for timer 4
     TIM4->CR1 = TIM_CR1_OPM;   // Enable one-pulse mode for timer 4
     NVIC_EnableIRQ(TIM4_IRQn); // Enable global interrupt for timer 4
@@ -165,7 +186,6 @@ void startTimer3()
 
 void startTimer4()
 {
-    // TIM4->CNT &= 0xFFFF0000;  // Reset timer counter
     TIM4->SR &= ~TIM_SR_UIF;  // Clear interrupt flag (UIF)
     TIM4->CR1 |= TIM_CR1_CEN; // Start the timer
 }
@@ -178,10 +198,10 @@ void stopTimer3()
 
 int getPscValue()
 {
-    unsigned int frequency = (int)((TIMER_FREQUENCY * DEFAULT_TIME_IN_SECONDS) / ARR);
-    if (amountPinTriggered > 0)
+    unsigned int frequency = (int)((TIMER_FREQUENCY * DEFAULT_TIME_IN_SECONDS) / (ARR + 1));
+    if (amountPinA0Triggered > 0)
     {
-        frequency = frequency / (2 * amountPinTriggered);
+        frequency = frequency / (2 * amountPinA0Triggered);
     }
     return frequency - 1;
 }

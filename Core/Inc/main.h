@@ -53,7 +53,7 @@ extern "C"
   void initializeTimers();
 
   /**
-   * Start timer 3 with a duration calculated with the number of pin touches since the last call of this function.
+   * Start timer 3 with a duration calculated with the number of pin touches since the last call of this function. Uses variable ammountPinA0Triggered
    */
   void startTimer3();
 
@@ -63,20 +63,15 @@ extern "C"
   void stopTimer3();
 
   /**
-   * Start timer 4 with a duration calculated with the number of pin touches since the last call of this function.
+   * Start timer 4 in one-pulse-mode with a duration of 750ms.
    */
   void startTimer4();
 
   /**
-   * Calculates the PSC value based on amountPinTriggered.
+   * Calculates the PSC value based on ammountPinA0Triggered.
    */
   int getPscValue();
 
-  /**
-   * Wait 500 ms. Start timer 4 and wait for it to finish.
-   */
-
-  void wait500ms();
   /**
    * Toggles the LED.
    */
