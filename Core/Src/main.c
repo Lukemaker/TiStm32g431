@@ -2,13 +2,19 @@
 #include "stm32g431xx.h"
 #include "main.h"
 
-const double TIMER_FREQUENCY = 16000000.0; /**The timer frequency: 16 MHz.*/
-const int ARR = 5000;                      /**The ARR value. Affects the calculation of the pcr value.*/
-const int PSC_750MS = 2400;                /**The PSC value for the timer to count 0.75 seconds in combination with the ARR = 5000*/
-const int DEFAULT_TIME_IN_SECONDS = 5;     /**The default time in seconds for the led if Pin A0 wasn't touched at all.*/
-bool isLedBlinking = false;                /**True if LED is currently blinking.*/
-int amountPinTriggered = 0;                /**Contains the number of how often Pin A0 was touched.*/
-bool isTrigger0 = false;
+const int PIN_A0 = 0; /**Represents PA0 */
+const int PIN_A2 = 2; /**Represents PA2 */
+
+const double TIMER_FREQUENCY = 16000000.0; /** The timer frequency: 16 MHz. */
+const int ARR = 5000;                      /** The ARR value. Affects the calculation of the PCR value. */
+const int PSC_750MS = 240;                 /** The PSC value for the timer to count 0.75 seconds in combination with the ARR = 5000 */
+const int DEFAULT_TIME_IN_SECONDS = 5;     /** The default time in seconds for the LED if Pin A0 wasn't touched at all. */
+
+int amountPinTriggered = 0; /** Contains the number of how often Pin A0 was touched. */
+int pinTrigger;
+bool isLedBlinking = false; /** True if LED is currently blinking. */
+bool debounce0 = false;     /** Debounce flag for Pin A0. */
+bool debounce2 = false;     /** Debounce flag for Pin A2. */
 
 void main(void)
 {
@@ -31,28 +37,27 @@ void TIM3_IRQHandler()
  */
 void TIM4_IRQHandler()
 {
-    if (isTrigger0)
+    TIM4->SR &= ~TIM_SR_UIF; // Clear interrupt flag (UIF)
+
+    if (pinTrigger == PIN_A0)
     {
-        EXTI->PR1 &= ~EXTI_PR1_PIF0; // Clear interrupt flag for EXTI line 0
-        EXTI->IMR1 |= EXTI_IMR1_IM0;
+        debounce0 = false;           // Clear debounce flag for PA0
+        EXTI->PR1 |= EXTI_PR1_PIF0;  // Clear interrupt flag for EXTI line 0
+        EXTI->IMR1 |= EXTI_IMR1_IM0; // Re-enable interrupt for EXTI line 0
     }
-    else
+    else if (pinTrigger == PIN_A2)
     {
+        if (isLedBlinking)
+        {
+            EXTI->IMR1 |= EXTI_IMR1_IM0; // Enable interrupt for EXTI line 0
+        }
         isLedBlinking = !isLedBlinking;
-        if (!isLedBlinking)
-        {
-            amountPinTriggered = 0;
-            EXTI->IMR1 |= EXTI_IMR1_IM0;
-        }
-        else
-        {
-            EXTI->IMR1 &= ~EXTI_IMR1_IM0;
-            startTimer3();
-        }
-        EXTI->PR1 &= ~EXTI_PR1_PIF2; // Clear interrupt flag for EXTI line 2
-        EXTI->IMR1 |= EXTI_IMR1_IM2;
+        amountPinTriggered = 0;
+        debounce2 = false;           // Clear debounce flag for PA2
+        EXTI->PR1 |= EXTI_PR1_PIF2;  // Clear interrupt flag for EXTI line 2
+        EXTI->IMR1 |= EXTI_IMR1_IM2; // Re-enable interrupt for EXTI line 2
     }
-    TIM4->SR &= ~TIM_SR_UIF; // Clear interrupt-flag (UIF)
+    pinTrigger = -1;
 }
 
 /**
@@ -60,11 +65,16 @@ void TIM4_IRQHandler()
  */
 void EXTI0_IRQHandler(void)
 {
-    EXTI->IMR1 &= ~EXTI_IMR1_IM0;
-    toggleLed();
-    isTrigger0 = true;
-    amountPinTriggered++;
-    wait500ms();
+    if (!debounce0)
+    {
+        debounce0 = true;             // Set debounce flag for PA0
+        EXTI->IMR1 &= ~EXTI_IMR1_IM0; // Disable interrupt for EXTI line 0
+        EXTI->PR1 |= EXTI_PR1_PIF0;   // Clear interrupt flag for EXTI line 0
+        toggleLed();
+        pinTrigger = PIN_A0;
+        amountPinTriggered++;
+        startTimer4(); // Start debounce timer
+    }
 }
 
 /**
@@ -72,13 +82,23 @@ void EXTI0_IRQHandler(void)
  */
 void EXTI2_IRQHandler(void)
 {
-    //TODO: Deactivate Interrupt after triggering it
-    EXTI->IMR1 &= ~EXTI_IMR1_IM2;
-    stopTimer3();
-    toggleLed();
-    isTrigger0 = false;
-    wait500ms();
+    if (!debounce2)
+    {
+        debounce2 = true;             // Set debounce flag for PA2
+        EXTI->IMR1 &= ~EXTI_IMR1_IM2; // Disable interrupt for EXTI line 2
+        EXTI->PR1 |= EXTI_PR1_PIF2;   // Clear interrupt flag for EXTI line 2
+        stopTimer3();
+        toggleLed();
+        pinTrigger = PIN_A2;
+        if (!isLedBlinking) // TODO: If it does not work, move it back into TIM4 Handler
+        {
+            EXTI->IMR1 &= ~EXTI_IMR1_IM0; // Disable interrupt for EXTI line 0
+            startTimer3();
+        }
+        startTimer4(); // Start debounce timer
+    }
 }
+
 void initialize()
 {
     initializeLed();
@@ -131,7 +151,7 @@ void initializeTimers()
     NVIC_EnableIRQ(TIM3_IRQn); // Enable global interrupt for timer 3
 
     TIM4->ARR = (ARR - 1);     // Set ARR value of timer 4
-    TIM4->PSC = PSC_750MS;     // Set PSC value of timer 4
+    TIM4->PSC = PSC_750MS;     // Set PSC value of timer 4 for 500ms debounce
     TIM4->DIER = TIM_DIER_UIE; // Enable update interrupt for timer 4
     TIM4->CR1 = TIM_CR1_OPM;   // Enable one-pulse mode for timer 4
     NVIC_EnableIRQ(TIM4_IRQn); // Enable global interrupt for timer 4
@@ -143,15 +163,10 @@ void startTimer3()
     TIM3->CR1 |= TIM_CR1_CEN; // Start the timer
 }
 
-void wait500ms()
-{
-    startTimer4();
-}
-
 void startTimer4()
 {
-    TIM4->CNT &= 0xFFFF0000;  // Reset timer counter
-    TIM4->SR &= ~TIM_SR_UIF;  // Clear interrupt-flag (UIF)
+    // TIM4->CNT &= 0xFFFF0000;  // Reset timer counter
+    TIM4->SR &= ~TIM_SR_UIF;  // Clear interrupt flag (UIF)
     TIM4->CR1 |= TIM_CR1_CEN; // Start the timer
 }
 
