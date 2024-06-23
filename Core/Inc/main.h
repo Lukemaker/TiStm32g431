@@ -28,6 +28,7 @@ extern "C"
 #endif
 
 /* Includes ------------------------------------------------------------------*/
+#include <stdbool.h>
 #include "stm32g4xx_hal.h"
 
   void Error_Handler(void);
@@ -74,8 +75,9 @@ extern "C"
 
   /**
    * Toggles the LED.
+   * @param turnLedOn Turns Led on if true. Turns it off if false.
    */
-  void toggleLed();
+  void toggleLed(bool turnLedOn);
 
 #ifdef __cplusplus
 }

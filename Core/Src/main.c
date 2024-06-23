@@ -11,11 +11,11 @@ const int PSC_750MS = 2399;                /** The PSC value for the timer to co
 const int DEFAULT_TIME_IN_SECONDS = 5;     /** The default time in seconds for the LED if Pin A0 wasn't touched at all. */
 
 int amountPinA0Triggered = 0; /** Contains the number of how often Pin A0 was touched. */
-int pinTrigger;               /** Contains the number of the pin last triggered/last touched. */
+int lastPinA0Triggered = 0;   /** Contains the number of how often Pin A0 was touched last time. */
+int pinTrigger = -1;          /** Contains the number of the pin last triggered/last touched. */
 
-bool isLedBlinking = false; /** True if LED is currently blinking. */
-bool isPinA0Active = false; /** Debounce flag for Pin A0. */
-bool isPinA2Active = false; /** Debounce flag for Pin A2. */
+bool isLedBlinking = false; /** True if LED is currently blinking. (True if timer 3 is active) */
+bool isLedOn = true;        /** True if LED is on */
 
 /**
  * Returns true if it's the first time touching any pin.
@@ -29,6 +29,7 @@ bool isFirstTouch = true;
 void main(void)
 {
     initialize();
+    startTimer4();
     while (1)
         ;
 }
@@ -39,7 +40,8 @@ void main(void)
 void TIM3_IRQHandler()
 {
     TIM3->SR &= ~TIM_SR_UIF; // Clear interrupt flag (UIF)
-    toggleLed();
+    isLedOn = !isLedOn;
+    toggleLed(isLedOn);
 }
 
 /**
@@ -48,11 +50,10 @@ void TIM3_IRQHandler()
 void TIM4_IRQHandler()
 {
     TIM4->SR &= ~TIM_SR_UIF; // Clear interrupt flag (UIF)
-    isFirstTouch = false;
 
     if (pinTrigger == PIN_A0)
     {
-        isPinA0Active = false;
+        lastPinA0Triggered = amountPinA0Triggered;
         EXTI->PR1 |= EXTI_PR1_PIF0;  // Clear interrupt flag for EXTI line 0
         EXTI->IMR1 |= EXTI_IMR1_IM0; // Re-enable interrupt for EXTI line 0
     }
@@ -64,9 +65,13 @@ void TIM4_IRQHandler()
         }
         isLedBlinking = !isLedBlinking;
         amountPinA0Triggered = 0;
-        isPinA2Active = false;
+        lastPinA0Triggered = 0;
         EXTI->PR1 |= EXTI_PR1_PIF2;  // Clear interrupt flag for EXTI line 2
         EXTI->IMR1 |= EXTI_IMR1_IM2; // Re-enable interrupt for EXTI line 2
+    }
+    if (pinTrigger != PIN_A2 || !isLedBlinking)
+    {
+        isLedOn = !isLedOn; // If it's starting to blink Timer 3 is already toggling it
     }
     pinTrigger = -1;
 }
@@ -76,20 +81,12 @@ void TIM4_IRQHandler()
  */
 void EXTI0_IRQHandler(void)
 {
-    if (!isPinA0Active)
-    {
-        isPinA0Active = true;
-        EXTI->IMR1 &= ~EXTI_IMR1_IM0; // Disable interrupt for EXTI line 0
-        EXTI->PR1 |= EXTI_PR1_PIF0;   // Clear interrupt flag for EXTI line 0
-        toggleLed();
-        pinTrigger = PIN_A0;
-        amountPinA0Triggered++;
-        if (isFirstTouch)
-        {
-            amountPinA0Triggered = 1;
-        }
-        startTimer4();
-    }
+    EXTI->IMR1 &= ~EXTI_IMR1_IM0; // Disable interrupt for EXTI line 0
+    EXTI->PR1 |= EXTI_PR1_PIF0;   // Clear interrupt flag for EXTI line 0
+    toggleLed(!isLedOn);
+    pinTrigger = PIN_A0;
+    amountPinA0Triggered = lastPinA0Triggered + 1;
+    startTimer4();
 }
 
 /**
@@ -97,27 +94,17 @@ void EXTI0_IRQHandler(void)
  */
 void EXTI2_IRQHandler(void)
 {
-    if (!isPinA2Active)
+    EXTI->IMR1 &= ~EXTI_IMR1_IM2; // Disable interrupt for EXTI line 2
+    EXTI->PR1 |= EXTI_PR1_PIF2;   // Clear interrupt flag for EXTI line 2
+    stopTimer3();
+    toggleLed(!isLedOn);
+    pinTrigger = PIN_A2;
+    if (!isLedBlinking)
     {
-        isPinA2Active = true;
-        EXTI->IMR1 &= ~EXTI_IMR1_IM2; // Disable interrupt for EXTI line 2
-        EXTI->PR1 |= EXTI_PR1_PIF2;   // Clear interrupt flag for EXTI line 2
-        if (!isFirstTouch)
-        {
-            stopTimer3();
-        }
-        pinTrigger = PIN_A2;
-        if (!isLedBlinking)
-        {
-            EXTI->IMR1 &= ~EXTI_IMR1_IM0; // Disable interrupt for EXTI line 0
-            startTimer3();
-        }
-        else
-        {
-            toggleLed();
-        }
-        startTimer4();
+        EXTI->IMR1 &= ~EXTI_IMR1_IM0; // Disable interrupt for EXTI line 0
+        startTimer3();
     }
+    startTimer4();
 }
 
 void initialize()
@@ -141,26 +128,20 @@ void initializeLed()
 
 void initializePinInterrupts()
 {
-    // Enable RCC clocks for GPIOA
-    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
+    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;  // Enable RCC clocks for GPIOA
+    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN; // Enable system configuration controller clock
 
-    // Set PA0 and PA2 as inputs
-    GPIOA->MODER &= ~(GPIO_MODER_MODE0 | GPIO_MODER_MODE2);
+    GPIOA->MODER &= ~(GPIO_MODER_MODE0 | GPIO_MODER_MODE2); // Set PA0 and PA2 as inputs
 
-    // Enable system configuration controller clock
-    RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
-
-    // Configure external interrupt for PA0 (EXTI0) and PA2 (EXTI2)
+    // Set external interrupt to series A for PA0 (EXTI0) and PA2 (EXTI2).
     SYSCFG->EXTICR[0] &= ~(SYSCFG_EXTICR1_EXTI0 | SYSCFG_EXTICR1_EXTI2);
     SYSCFG->EXTICR[0] |= SYSCFG_EXTICR1_EXTI0_PA | SYSCFG_EXTICR1_EXTI2_PA;
 
-    // Enable interrupts for EXTI0 and EXTI2
-    EXTI->IMR1 |= EXTI_IMR1_IM0 | EXTI_IMR1_IM2;
-    EXTI->RTSR1 |= EXTI_RTSR1_RT0 | EXTI_RTSR1_RT2;
+    EXTI->IMR1 |= EXTI_IMR1_IM0 | EXTI_IMR1_IM2;    // Enable interrupts for EXTI0 and EXTI2 [Unmask interrupt request]
+    EXTI->RTSR1 |= EXTI_RTSR1_RT0 | EXTI_RTSR1_RT2; // Enable rising trigger for EXTI0 and EXTI2
 
-    // Enable NVIC for EXTI0 and EXTI2
-    NVIC_EnableIRQ(EXTI0_IRQn);
-    NVIC_EnableIRQ(EXTI2_IRQn);
+    NVIC_EnableIRQ(EXTI0_IRQn); // Enable NVIC for EXTI0
+    NVIC_EnableIRQ(EXTI2_IRQn); // Enable NVIC for EXTI2
 }
 
 void initializeTimers()
@@ -168,32 +149,32 @@ void initializeTimers()
     RCC->APB1ENR1 |= RCC_APB1ENR1_TIM3EN | RCC_APB1ENR1_TIM4EN; // Enable clocks for timer 3 & 4
 
     TIM3->ARR = ARR;
-    TIM3->DIER = TIM_DIER_UIE; // Enable update interrupt for timer 3
-    NVIC_EnableIRQ(TIM3_IRQn); // Enable global interrupt for timer 3
+    TIM3->DIER = TIM_DIER_UIE; // Enable update interrupt
+    NVIC_EnableIRQ(TIM3_IRQn); // Enable global interrupt
 
     TIM4->ARR = ARR;
     TIM4->PSC = PSC_750MS;
-    TIM4->DIER = TIM_DIER_UIE; // Enable update interrupt for timer 4
-    TIM4->CR1 = TIM_CR1_OPM;   // Enable one-pulse mode for timer 4
-    NVIC_EnableIRQ(TIM4_IRQn); // Enable global interrupt for timer 4
+    TIM4->DIER = TIM_DIER_UIE; // Enable update interrupt
+    TIM4->CR1 = TIM_CR1_OPM;   // Enable one-pulse mode [Bit 3 OPM: One-pulse mode -> true]
+    NVIC_EnableIRQ(TIM4_IRQn); // Enable global interrupt
 }
 
 void startTimer3()
 {
     TIM3->PSC = getPscValue();
-    TIM3->CR1 |= TIM_CR1_CEN; // Start the timer
+    TIM3->CR1 |= TIM_CR1_CEN; // Start the timer [Bit 0 CEN: Counter enable -> true]
 }
 
 void startTimer4()
 {
-    TIM4->SR &= ~TIM_SR_UIF;  // Clear interrupt flag (UIF)
-    TIM4->CR1 |= TIM_CR1_CEN; // Start the timer
+    TIM4->SR &= ~TIM_SR_UIF;  // Clear update interrupt flag (UIF)
+    TIM4->CR1 |= TIM_CR1_CEN; // Start the timer [Bit 0 CEN: Counter enable -> true]
 }
 
 void stopTimer3()
 {
-    TIM3->CR1 &= ~TIM_CR1_CEN; // Stop the timer
-    TIM3->CNT &= 0xFFFF0000;   // Reset timer counter
+    TIM3->CR1 &= ~TIM_CR1_CEN; // Stop the timer [Bit 0 CEN: Counter enable -> false]
+    TIM3->CNT &= 0xFFFF0000;   // Reset timer counter [16-Bit]
 }
 
 int getPscValue()
@@ -206,7 +187,14 @@ int getPscValue()
     return frequency - 1;
 }
 
-void toggleLed()
+void toggleLed(bool turnLedOn)
 {
-    GPIOB->ODR ^= 1 << 8;
+    if (turnLedOn)
+    {
+        GPIOB->ODR |= 1 << 8;
+    }
+    else
+    {
+        GPIOB->ODR &= ~(1 << 8);
+    }
 }
