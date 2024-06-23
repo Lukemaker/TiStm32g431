@@ -18,12 +18,6 @@ bool isLedBlinking = false; /** True if LED is currently blinking. (True if time
 bool isLedOn = true;        /** True if LED is on */
 
 /**
- * Returns true if it's the first time touching any pin.
- * Necessary because the first time can be triggered multiple times at the same time. Reason unknown.
- */
-bool isFirstTouch = true;
-
-/**
  * Main method. Is getting called
  */
 void main(void)
