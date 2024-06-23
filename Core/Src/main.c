@@ -14,8 +14,8 @@ int amountPinA0Triggered = 0; /** Contains the number of how often Pin A0 was to
 int pinTrigger;               /** Contains the number of the pin last triggered/last touched. */
 
 bool isLedBlinking = false; /** True if LED is currently blinking. */
-bool debounce0 = false;     /** Debounce flag for Pin A0. */
-bool debounce2 = false;     /** Debounce flag for Pin A2. */
+bool isPinA0Active = false; /** Debounce flag for Pin A0. */
+bool isPinA2Active = false; /** Debounce flag for Pin A2. */
 
 /**
  * Returns true if it's the first time touching any pin.
@@ -52,7 +52,7 @@ void TIM4_IRQHandler()
 
     if (pinTrigger == PIN_A0)
     {
-        debounce0 = false;
+        isPinA0Active = false;
         EXTI->PR1 |= EXTI_PR1_PIF0;  // Clear interrupt flag for EXTI line 0
         EXTI->IMR1 |= EXTI_IMR1_IM0; // Re-enable interrupt for EXTI line 0
     }
@@ -64,7 +64,7 @@ void TIM4_IRQHandler()
         }
         isLedBlinking = !isLedBlinking;
         amountPinA0Triggered = 0;
-        debounce2 = false;
+        isPinA2Active = false;
         EXTI->PR1 |= EXTI_PR1_PIF2;  // Clear interrupt flag for EXTI line 2
         EXTI->IMR1 |= EXTI_IMR1_IM2; // Re-enable interrupt for EXTI line 2
     }
@@ -76,9 +76,9 @@ void TIM4_IRQHandler()
  */
 void EXTI0_IRQHandler(void)
 {
-    if (!debounce0)
+    if (!isPinA0Active)
     {
-        debounce0 = true;
+        isPinA0Active = true;
         EXTI->IMR1 &= ~EXTI_IMR1_IM0; // Disable interrupt for EXTI line 0
         EXTI->PR1 |= EXTI_PR1_PIF0;   // Clear interrupt flag for EXTI line 0
         toggleLed();
@@ -97,9 +97,9 @@ void EXTI0_IRQHandler(void)
  */
 void EXTI2_IRQHandler(void)
 {
-    if (!debounce2)
+    if (!isPinA2Active)
     {
-        debounce2 = true;
+        isPinA2Active = true;
         EXTI->IMR1 &= ~EXTI_IMR1_IM2; // Disable interrupt for EXTI line 2
         EXTI->PR1 |= EXTI_PR1_PIF2;   // Clear interrupt flag for EXTI line 2
         if (!isFirstTouch)
